@@ -38,6 +38,26 @@ class GlobalConfig(BaseSettings):
     
     API_V_STR: str = f"/api/{V_STR}"
     
+    LLM_MODEL_ID: str = getenv("LLM_MODEL_ID",
+                               "ibm/granite-3-2b-instruct")
+    LLM_TEMPERATURE: float = float(getenv("LLM_TEMPERATURE", 0))
+    LLM_MAX_TOKENS: int = int(getenv("LLM_MAX_TOKENS", 1280))
+    PROJECT_ID: str = getenv("PROJECT_ID",)
+    LLM_URL: str = getenv("LLM_URL",)
+    if not LLM_URL:
+        raise ValueError("LLM_URL must be set")
+    if not PROJECT_ID:
+        raise ValueError("PROJECT_ID must be set")
+    if not LLM_MODEL_ID:
+        raise ValueError("LLM_MODEL_ID must be set")
+    
+    DB_USER: str = getenv("DB_USER", "postgres")
+    DB_PASSWORD: str = getenv("DB_PASSWORD", "postgres")
+    DB_HOST: str = getenv("DB_HOST", "localhost")
+    DB_PORT: int = int(getenv("DB_PORT", 5432))
+    DB_NAME: str = getenv("DB_NAME", "postgres")
+    
+    
     WATSONX_API_KEY: str = getenv('WATSONX_API_KEY')
     
     if not WATSONX_API_KEY:
