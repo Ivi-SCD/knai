@@ -1,41 +1,45 @@
 from langchain.prompts import PromptTemplate
 from prompt import general_rules, roles
-import json
+import json, re
 
 def json_schema_into_md(model, json):
-    model = model
-
     template_json_into_md = PromptTemplate(
-        input_variables=["role", "rules", "examples", "json"],
+        input_variables=["role", "rules", "json"],
         template="""
         ROLE:
             {role}
 
         RULES: 
             {rules}
-        
-        EXAMPLES:
-            {examples}
 
         SCHEMA: 
             {json}
 
-        AGENT:
+        MARKDOWN:
         """
     )
 
     formatted_template = template_json_into_md.format(
         role=roles.JSON_TO_MARKDOWN_ROLE,
-        examples="""    
-        TABELA usuario
-            COLUNA id TIPO SERIAL PRIMARY KEY TRUE
-            COLUNA nome TIPO VARCHAR TAMANHO 20 NULO FALSE  
-        """,
         rules=general_rules.JSON_TO_MD_RULE,
         json=json
     )
 
-    return model.invoke(formatted_template).content
+    response = model.invoke(formatted_template)
+
+    return response  
+
+
+def extract_sql_regex(text):
+    try:
+        pattern = r"```sql\n([\s\S]*?)\n```"
+        match = re.search(pattern, text)
+        if match:
+            return match.group(1).strip()
+        return None
+    except Exception as e:
+        print(f"Erro ao extrair SQL: {e}")
+        return None
 
 def load_json(path):
     with open(path, 'r') as file:
