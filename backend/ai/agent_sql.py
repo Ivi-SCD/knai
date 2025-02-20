@@ -1,21 +1,20 @@
 from prompt import POSTGRES_SINTAX_RULES, AGENT_ROLE, AGENT_RULES
 from langchain.prompts import PromptTemplate
 from llm import get_llm
-import json
 
-def get_query(path, question) -> str:
+def get_query(json, question) -> str:
+
     import utils
-
-    with open(path, 'r') as file:
-        data = json.load(file)
-
-    md_schema = utils.json_schema_into_md(get_llm(), data)
+    md_schema = utils.json_schema_into_md(get_llm(), json)
 
     template_to_query_answer = PromptTemplate(
         input_variables=["role", "rules", "json"],
         template="""
             ROLE:
                 {role}
+
+            SINTAX:
+                {sintax}
 
             RULES:
                 {rules}
@@ -32,9 +31,14 @@ def get_query(path, question) -> str:
 
     template_formatted = template_to_query_answer.format(
         role=AGENT_ROLE,
-        rules=POSTGRES_SINTAX_RULES.join("\n" + AGENT_RULES),
+        sintax=POSTGRES_SINTAX_RULES,
+        rules=AGENT_RULES,
         question=question,
         json=md_schema
     )
-    
-    return get_llm().invoke(template_formatted).content
+    response = get_llm().invoke(template_formatted)
+    return utils.extract_sql_regex(response)
+
+def execute_sql_query(query, executor):
+    result = executor.execute_query(query)
+    return result
