@@ -1,158 +1,193 @@
-from beeai_framework.memory.unconstrained_memory import UnconstrainedMemory
-from .tools import sql_generator, execute_query, analyze_query_performance
-from beeai_framework.agents.types import BeeInput, BeeRunInput
-from beeai_framework.backend.chat import ChatModel
-from beeai_framework.utils import BeeLogger
+from .tools import sql_generator, execute_query
 from .services.llm_service import llmService
-from beeai_framework import BeeAgent
-from typing import Dict, Any
+from typing import Dict, List
+import logging
 
-logger = BeeLogger(__name__)
-
-class KNAIService:
-
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+ 
+class KNAIService():
+    """
+    A service class for processing natural language queries and generating insights or SQL queries.
+    """
     
     def __init__(self):
-        self.chat_model = None
-        self.agent = None
-
-
-    async def initialize(self):
         """
-        Initialize the chat model and agent
+        Initializes the KNAIService instance, setting up the LLM instance and query history.
         """
-        if not self.chat_model:
-            self.chat_model = await ChatModel.from_name("ollama:granite3.1-dense:8b")
-            self.agent = BeeAgent(
-                BeeInput(
-                    llm=self.chat_model,
-                    tools=[sql_generator, execute_query, analyze_query_performance],
-                    memory=UnconstrainedMemory()
-                )
-            )
+
+        self.instance_llm = llmService.getwatson_llm()
+        self.history = []
 
 
-    async def process_query(self, query: str) -> Dict[str, Any]:
+    def _verify_question(self, question: str) -> str:
         """
-        Process a natural language query and return structured results
+        Verifies whether a query is a data request or a casual interaction.
+
+        Args:
+            question: A natural language query from the user.
+
+        Returns:
+            A string indicating whether the query is a "sql_request" or "casual_interaction".
         """
-        await self.initialize()
 
-        try:
-            result = await self.agent.run(
-                BeeRunInput(
-                    prompt=self._create_prompt(query)
-                )
-            )
+        request_verification = f"""
+            <|system|>
+                You are an assistant specialized in determining whether a query is a data request or a casual interaction with the user. Your task is to analyze the query and return one of the following fixed responses to classify the query:
+                If the query is a data request (e.g., "What's the most expensive product?", "How many sales did we have today?", etc.), return: "sql_request"
+                If the query is a casual interaction, such as a greeting or thank you (e.g., "hi", "thanks", "good afternoon", etc.), return: "casual_interaction"
 
-            logger.info(result)
-            return self._format_response(result)
+                Important: Only return "sql_request" or "casual_interaction" and nothing else. Do not provide explanations or additional context. Simply classify the query according to the examples above.
 
-        except Exception as e:
-            logger.error(f"Error processing query: {str(e)}")
-            return {
-                "status": "error",
-                "response": {
-                    "message": str(e)}
+            <|user|> 
+                {question}
+
+            <|assistant|>
+        """
+
+        return self.instance_llm.invoke(request_verification).content
+
+
+    def _answer_question_knai(self, context_messages: List[str], question: str) -> str:
+        """
+        Generates a response to a user query based on the provided context using LLM.
+
+        Args:
+            context_messages: A list of previous context messages to guide the response.
+            question: The user's natural language question.
+
+        Returns:
+            A friendly, conversational answer based on the context.
+        """
+
+        context = "\n".join(context_messages[-10:])
+
+        prompt = f"""
+            <|context|>
+                {context}
+
+            <|user|> 
+                {question}
+
+            <|role|>
+                Your main function is to answer about product, sales and extract insight of data. 
+                We are a enterprise with AI Engineers, Designers and Developers that are together
+                to delivery critical resources to solve business problems with Generative AI and innovative tools
+                We born in 2025 with main idea to solve business problemas with IBM resources
+                
+            <|system|>
+                Your name is KNAI Assistant, if is your first message with the user, try to explain about your COMPANY,
+                you work for this guys:
+                    - Ivisson is the AI Developer, kindness guy :)
+                    - Giu is an AI Engineer, big engineer building a solid career
+                    - Marcos is our amazing frontender
+                    - Dani is our AI Researcher that drive the business model
+                    - Xoto (Hugo) is the designer tha created our visual identity
+                    - Edson is our AI Engineer.
+                Respond in a friendly, conversational tone to the user query based on the provided context.
+            
+            <|assistant|>
+        """ # Here is a easter egg
+
+        final_answer = self.instance_llm.invoke(prompt)
+
+        self.history.append(f"<user> {question}")
+        self.history.append(f"<assistant> {final_answer.content}")
+
+        return final_answer.content
+
+    def process_query(self, natural_query: str) -> Dict:
+        """
+        Processes the user query by verifying its type and generating the appropriate response, either through natural language or SQL queries.
+
+        Args:
+            natural_query: The natural language query from the user.
+
+        Returns:
+            A dictionary containing the final answer, the generated SQL query (if any), and the query results (if applicable).
+        """
+        logger.info(f"Processing query: {natural_query}")
+
+        if self._verify_question(natural_query) == 'casual_interaction':
+            model_response = self._answer_question_knai(self.history, natural_query)
+            
+            response = {
+                "final_answer": model_response,
+                "sql_query": None,
+                "query_result": None, 
             }
 
+            return {
+                "status": "success",
+                "response": response
+            }
 
-    def _create_prompt(self, query: str) -> str:
-        """
-        Create the system prompt
-        """
-        return f"""
-        <|system|>
-            You are KNAI, an AI assistant specialized in SQL analysis and generation of insights.
-            Follow these steps for each query:
-            1. Generate and validate SQL using sql_generator
-            2. Execute query with execute_query
-            3. Analyze query performance with analyze_query_performance
+        
 
-        <|tools|>
-            - sql_generator: Creates SQL queries
-            - execute_query: Executes queries safely
-            - analyze_query_performance: Analyzes query efficiency
+        sql_query = sql_generator(natural_query)
 
-        <|rule|>
-            1. Always validate queries before execution
-            2. Cache frequently used query results
-            3. Include performance metrics when relevant
-            4. Format responses using markdown
+        logger.info(f"Generated SQL query: {sql_query}")
 
-        <|user|>
-            {query}
+        if sql_query == "NO_CONTEXT":
+            return {
+                    "status": "error", 
+                    "response": 
+                        {
+                            "message": "Failed to generate a valid SQL query"
+                        }
+                    }
 
-        <|assistant|>
-        """
+        query_result = execute_query(sql_query)
 
-    
-    def _create_final_answer_tunned(self, context) -> str:
-        """
-        Tunning the final answer
-        """
-        return f"""
+        logger.info(f"Query result: {query_result}")
+
+        context = f"""<user query> {sql_query} 
+                    <result query> {query_result}"""
+
+        prompt = f"""
             <|context|>
                 {context}
 
             <|system|>
-            You are an expert data analyst with extensive experience in extracting insights and providing strategic recommendations. Your task is to analyze the provided data comprehensively.
-            Follow these guidelines when analyzing the data:
-
-            DATA EXAMINATION
-            INSIGHT GENERATION
-            RECOMMENDATIONS
-            ANALYSIS STRUCTURE
+                You received a JSON result with a question and an answer. You are an expert data analyst
+                with extensive experience in extracting insight and aand providing strategic recommendations. 
+                Your main task is to analyze the provided data comprehensively and generate actionable insights in a human-friendly response.
+                Use the query result to explain any key patterns, trends, and insights that can be derived from the data.
+.
+    
+            <|example|>
+                <user> What are the main factors driving the drop in our Sales Revenue this week?
+                <result query> sales_revenue\tpercentage_down\tsales_date_time\n9.7M\t4%\t2025-22-02\n11M\t12%\t2025-18-02
+                <assistant> 
+                 Sales revenue has decreased by 4%, with a total of 9.7M in revenue this week, down from 11M the previous week (a decrease of 1.3M). Key contributing factors include:
+        
+                    1. A 12% drop in sales revenue from 11M to 9.7M over the past week, signaling a decline in overall sales performance.
+                    2. A reduction in user engagement, particularly from paid ads. The number of users driven by paid ads decreased by 17%, from 250k to 147k, leading to a loss of 138k in revenue.
+                    
+                    Recommendations:
+                    - Investigate the effectiveness of your paid ad campaigns and consider optimizing targeting to regain lost users.
+                    - Analyze customer behavior and purchase patterns to identify other potential causes of the decline.
+                    - Reevaluate pricing or promotional strategies to stimulate sales and increase revenue.
+                    - Consider alternative marketing strategies to diversify your revenue streams.
+                    
+                    In conclusion, the drop in sales revenue seems to be linked to both a decrease in user acquisition through paid ads and broader sales performance trends. Adjusting your marketing and sales strategies could help mitigate the decline.
+            <|end_example|>
 
             <|assistant|>
         """
-    
 
-    def _format_response(self, result) -> Dict[str, Any]:
-        """
-        Format the agent's response for the API
-        """
-        steps = []
-        final_answer = None
-        generated_sql = None
-        execution_result = None
-        performance_analysis = None
-        template_final_answer_tunned = self._create_final_answer_tunned(result)
+        final_answer = llmService.getwatson_llm().invoke(prompt)
 
-        final_answer_tunned = llmService.get_llm().invoke(template_final_answer_tunned)
+        response = {
+            "final_answer": final_answer.content,
+            "sql_query": sql_query,
+            "query_result": query_result, 
+        }
 
+        self.history.append(f"<user> {natural_query}")
+        self.history.append(f"<assistant> {final_answer.content}")
         
-        for iteration in result.iterations:
-            step = {
-                "thought": iteration.state.thought,
-                "tool_name": iteration.state.tool_name,
-                "tool_output": iteration.state.tool_output
-            }
-            steps.append(step)
-
-            # Capture specific outputs
-            if iteration.state.tool_name == "sql_generator":
-                generated_sql = iteration.state.tool_output
-
-            elif iteration.state.tool_name == "execute_query":
-                execution_result = iteration.state.tool_output
-
-            elif iteration.state.tool_name == "analyze_query_performance":
-                performance_analysis = iteration.state.tool_output
-
-            if iteration.state.final_answer:
-                final_answer = iteration.state.final_answer
-
         return {
             "status": "success",
-            "response": {
-                "final_answer": final_answer or result.result,
-                "final_answer_tunned": final_answer_tunned,
-                "steps": steps,
-                "details": {
-                    "generated_sql": generated_sql,
-                    "execution_result": execution_result,
-                    "performance_analysis": performance_analysis
-                }
-            }
+            "response": response
         }

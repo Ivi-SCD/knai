@@ -14,12 +14,12 @@ class QueryResponse(BaseModel):
     response: Dict[str, Any]
 
 @router.post('/', response_model=QueryResponse)
-async def process_query(request: QueryRequest):
+def process_query(request: QueryRequest):
     """
     Process a natural language query and return the results
     """
     try:
-        result = await knai_service.process_query(request.query)
+        result = knai_service.process_query(request.query)
         return result
     except Exception as e:
         raise QueryResponse(
