@@ -1,21 +1,30 @@
-from fastapi import APIRouter, Depends
-
-from langgraph.graph.graph import CompiledGraph
-
-from natural_query.dependencies import get_sql_agent
-from natural_query.schemas import NaturalQueryRequest
+from fastapi import APIRouter
+from pydantic import BaseModel
+from typing import Dict, Any
+from .service import KNAIService
 
 router = APIRouter()
+knai_service = KNAIService()
 
-@router.post("/")
-def query(query: NaturalQueryRequest,
-          agent_executor: CompiledGraph = Depends(get_sql_agent)):
+class QueryRequest(BaseModel):
+    query: str
+
+class QueryResponse(BaseModel):
+    status: str
+    response: Dict[str, Any]
+
+@router.post('/', response_model=QueryResponse)
+async def process_query(request: QueryRequest):
     """
-    Queries the database.
-    :param query: The query in natural language.
-    :return:
-        dict: The result of the query.
+    Process a natural language query and return the results
     """
-    query_result = agent_executor.invoke({"messages": [("user", query.query)]})
-    return query_result
-    
+    try:
+        result = await knai_service.process_query(request.query)
+        return result
+    except Exception as e:
+        raise QueryResponse(
+            status="error",
+            response={
+                "message": str(e)
+            }
+        )
