@@ -38,8 +38,8 @@ class GlobalConfig(BaseSettings):
     
     API_V_STR: str = f"/api/{V_STR}"
     
-    LLM_MODEL_ID: str = getenv("LLM_MODEL_ID",
-                               "ibm/granite-3-2b-instruct")
+    LLM_MODEL_ID: str = getenv("LLM_MODEL_ID")
+    OLLAMA_MODEL_ID: str = "granite3.1-dense:8b"
     LLM_TEMPERATURE: float = float(getenv("LLM_TEMPERATURE", 0))
     LLM_MAX_TOKENS: int = int(getenv("LLM_MAX_TOKENS", 1280))
     PROJECT_ID: str = getenv("PROJECT_ID",)

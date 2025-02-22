@@ -7,6 +7,6 @@ api_router = APIRouter()
 api_router.include_router(natural_query_router,
                           prefix="/natural_query")
 
-@api_router.get("/health_check")
+@api_router.get("/ping")
 async def get_health_check():
-    return "Server is running"
+    return "OOOOOOOOOOOHHHHHHHHHHH pong :3"
