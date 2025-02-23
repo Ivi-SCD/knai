@@ -1,5 +1,4 @@
 from typing import List, Dict, Any, Optional
-from beeai_framework.utils import BeeLogger
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 import psycopg2.pool
@@ -8,8 +7,6 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-logger = BeeLogger(__name__)
 
 class PostgresDB:
     def __init__(

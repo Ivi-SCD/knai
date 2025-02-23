@@ -51,6 +51,7 @@ class GlobalConfig(BaseSettings):
     if not LLM_MODEL_ID:
         raise ValueError("LLM_MODEL_ID must be set")
     
+    REDIS_URI: str = getenv("REDIS_URI")
     DB_USER: str = getenv("DB_USER", "postgres")
     DB_PASSWORD: str = getenv("DB_PASSWORD", "postgres")
     DB_HOST: str = getenv("DB_HOST", "localhost")
