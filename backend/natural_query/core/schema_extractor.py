@@ -4,13 +4,28 @@ import psycopg2
 import json
 
 class SchemaExtractor:
+    """
+    A class to extract database schema information from a PostgreSQL database and save it to a JSON file.
+    """
+
     def __init__(self):
+        """
+        Initializes the SchemaExtractor instance, setting up the connection parameters and cache.
+        """
+
         self._schema_cache: Dict[str, Any] = {}
         self.conn = None
         self.cur = None
         self.connection_string = f'postgresql://{global_settings.DB_USER}:{global_settings.DB_PASSWORD}@{global_settings.DB_HOST}:{global_settings.DB_PORT}/{global_settings.DB_NAME}'
     
     def _connect(self):
+        """
+        Establishes the connection to the PostgreSQL database.
+        
+        Raises:
+            Exception: If the connection to the database fails.
+        """
+
         try:
             self.conn = psycopg2.connect(self.connection_string)
             self.cur = self.conn.cursor()
@@ -18,6 +33,10 @@ class SchemaExtractor:
             raise Exception(f"Connection error: {e}")
 
     def _disconnect(self):
+        """
+        Closes the database cursor and connection.
+        """
+
         if self.cur:
             self.cur.close()
         if self.conn:
@@ -25,12 +44,21 @@ class SchemaExtractor:
 
     def get_schema(self, schema_name: str = 'public') -> Dict:
         """
-        Extract database schema and return in the same format as your JSON schema
+        Extracts the database schema, including tables, columns, and relationships (foreign keys), and returns it in JSON format.
+        
+        Args:
+            schema_name: The name of the schema to extract (default is 'public').
+
+        Returns:
+            A dictionary containing the schema information.
+        
+        Raises:
+            Exception: If an error occurs during schema extraction.
         """
+
         try:
             self._connect()
             
-            # Query to get tables and their columns with types and constraints
             schema_query = """
                 SELECT 
                     t.table_name,
@@ -58,7 +86,6 @@ class SchemaExtractor:
             self.cur.execute(schema_query, (schema_name,))
             results = self.cur.fetchall()
 
-            # Get foreign key relationships
             fk_query = """
                 SELECT
                     tc.table_name, 
@@ -77,7 +104,6 @@ class SchemaExtractor:
             self.cur.execute(fk_query, (schema_name,))
             foreign_keys = self.cur.fetchall()
 
-            # Organize the schema data
             schema = {}
             current_table = None
 
@@ -91,12 +117,10 @@ class SchemaExtractor:
                         "relationships": []
                     }
 
-                # Process constraints
                 constraints_list = []
                 if constraints:
                     constraints_list = [c.strip() for c in constraints.split(',')]
-
-                # Build column definition
+  
                 column_def = {
                     "type": data_type,
                     "required": is_nullable == 'NO',
@@ -110,7 +134,6 @@ class SchemaExtractor:
 
                 schema[table_name]["columns"][column_name] = column_def
 
-            # Add foreign key relationships
             for fk in foreign_keys:
                 table_name, column_name, foreign_table, foreign_column = fk
                 if table_name in schema:
@@ -129,8 +152,13 @@ class SchemaExtractor:
 
     def save_schema_to_file(self, output_file: str, schema_name: str = 'public'):
         """
-        Extract schema and save to JSON file
+        Extracts the schema and saves it to a JSON file.
+        
+        Args:
+            output_file: The file path where the schema will be saved.
+            schema_name: The schema to extract (default is 'public').
         """
+        
         schema = self.get_schema(schema_name)
         with open(output_file, 'w') as f:
             json.dump(schema, f, indent=4)

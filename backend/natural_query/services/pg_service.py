@@ -4,6 +4,10 @@ from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 import psycopg2.pool
 import psycopg2
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 logger = BeeLogger(__name__)
 
@@ -19,15 +23,15 @@ class PostgresDB:
         max_connections: int = 10
     ):
         """
-        Inicializa a conexão com o Postgres.
+        Initialize the connecticon with Postgres
         Args:
-            dbname: Nome do banco de dados
-            user: Usuário do banco
-            password: Senha do banco
-            host: Host do banco
-            port: Porta do banco (default: 5432)
-            min_connections: Mínimo de conexões no pool (default: 1)
-            max_connections: Máximo de conexões no pool (default: 10)
+            dbname: Name of database
+            user: Database user
+            password: Database password
+            host: Database host
+            port: Database port (default: 5432)
+            min_connections: Pool min connections (default: 1)
+            max_connections: Pool max connections (default: 10)
         """
         self.db_config = {
             'dbname': dbname,
@@ -37,7 +41,6 @@ class PostgresDB:
             'port': port
         }
         
-        # Inicializa o pool de conexões
         self.pool = psycopg2.pool.SimpleConnectionPool(
             min_connections,
             max_connections,
@@ -46,7 +49,9 @@ class PostgresDB:
         logger.info("Pool de conexões PostgreSQL inicializado")
 
     def close(self):
-        """Fecha o pool de conexões"""
+        """
+        Close pool connection
+        """
         if self.pool:
             self.pool.closeall()
             logger.info("Pool de conexões PostgreSQL fechado")
@@ -54,9 +59,9 @@ class PostgresDB:
     @contextmanager
     def get_connection(self):
         """
-        Context manager para obter uma conexão do pool.
+        Context manager to obtain pool connection.
         Yields:
-            psycopg2.connection: Conexão do pool
+            psycopg2.connection: Connection pool
         """
         conn = self.pool.getconn()
         try:
@@ -67,11 +72,11 @@ class PostgresDB:
     @contextmanager
     def get_cursor(self, cursor_factory=RealDictCursor):
         """
-        Context manager para obter um cursor.
+        Context manager to get cursor
         Args:
-            cursor_factory: Fábrica de cursor (default: RealDictCursor para retornar dicts)
+            cursor_factory: cursor factory (default: RealDictCursor to return dicts)
         Yields:
-            psycopg2.cursor: Cursor para executar queries
+            psycopg2.cursor: to execute queries
         """
         with self.get_connection() as conn:
             cursor = conn.cursor(cursor_factory=cursor_factory)
@@ -84,13 +89,14 @@ class PostgresDB:
             finally:
                 cursor.close()
 
+
     def is_select_query(self, query: str) -> bool:
         """
-        Verifica se a query é um SELECT válido.
+        Verifies if select is valid
         Args:
-            query: Query SQL a ser verificada
+            query: SQL Query to be verified
         Returns:
-            bool: True se for um SELECT válido
+            bool: True if is valid SELECT
         """
         query = query.lower().strip()
         
@@ -109,18 +115,19 @@ class PostgresDB:
         
         return not any(cmd in query for cmd in forbidden_commands)
 
+
     def execute_select(self, query: str, params: Optional[Dict] = None) -> List[Dict]:
         """
-        Executa uma query SELECT de forma segura.
+        Execute a SQL Query securely
         Args:
-            query: Query SQL (deve ser SELECT)
-            params: Parâmetros para a query (opcional)
+            query: Query SQL (Must be SELECT)
+            params: Params to query (opcional)
         Returns:
-            List[Dict]: Resultados da query
+            List[Dict]: Query results
         Raises:
-            ValueError: Se a query não for um SELECT válido
+            ValueError: If query wasn't valid
         """
-        # Valida a query
+
         if not self.is_select_query(query):
             raise ValueError("Only SELECT queries are allowed")
 
@@ -137,9 +144,9 @@ class PostgresDB:
 
     def get_schema_info(self) -> Dict[str, Any]:
         """
-        Obtém informações sobre o schema do banco.
+        Get schema infos of database
         Returns:
-            Dict[str, Any]: Informações do schema
+            Dict[str, Any]: Schema informations
         """
         schema_query = """
         SELECT 

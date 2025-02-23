@@ -9,4 +9,4 @@ api_router.include_router(natural_query_router,
 
 @api_router.get("/ping")
 async def get_health_check():
-    return "OOOOOOOOOOOHHHHHHHHHHH pong :3"
+    return "Hello we are Knai :). Thank you for pinging us"

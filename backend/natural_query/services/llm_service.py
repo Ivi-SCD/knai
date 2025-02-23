@@ -1,10 +1,14 @@
-from langchain_ibm import ChatWatsonx
 from langchain_ollama import OllamaLLM
+from langchain_ibm import ChatWatsonx
 from config import global_settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LLMService:
-    """Service to manage LLM's interactions"""
-    
+    """
+    Service to manage LLM's interactions
+    """
     @staticmethod
     def getwatson_llm():
 
@@ -18,7 +22,6 @@ class LLMService:
             url=global_settings.LLM_URL,
             project_id=global_settings.PROJECT_ID,
             apikey=global_settings.WATSONX_API_KEY
-
         )
 
         return chat
